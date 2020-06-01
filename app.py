@@ -21,13 +21,13 @@ class Xpath_Util:
 
     def __init__(self):
         self.elements = None
-        self.required_elements = ['input', 'button', 'div', 'li', 'h3', 'a']
+        self.required_elements = ['input', 'button','li', 'a', 'h3', 'div']
         self.known_attribute_list = ['id', 'name', 'placeholder', 'value', 'title', 'type', 'class']
         self.root = None
-        self.xpaths = {}
+        self.locators = []
+        self.locatortype = {}
 
     def check_xpath(self, xpath):
-        # print('check xpath %s' % (xpath))
         return self.root.xpath(xpath)
 
     def generate_xpath(self, response):
@@ -39,7 +39,7 @@ class Xpath_Util:
             for required_element in self.required_elements:
                 self.elements = soup.find_all(required_element)
                 for element in self.elements:
-                    # print(element)
+                    self.locatortype = {}
                     if (not element.has_attr("type")) or (element.has_attr("type") and element['type'] != "hidden"):
                         for attr in self.known_attribute_list:
                             if self.identify_xpath(required_element, element):
@@ -55,7 +55,10 @@ class Xpath_Util:
                                                                                    button_text.strip())
                                 if len(self.check_xpath(locator)) == 1:
                                     result_flag = True
-                                    print(locator)
+                                    replace_string = self._replace_hypen(href_text)
+                                    key = replace_string+"_button"
+                                    self.locatortype['xpath'] = locator
+                                    self.locatortype['key'] = key
                                     break
                             elif required_element == 'a' and element.getText():
                                 href_text = element.getText()
@@ -64,19 +67,23 @@ class Xpath_Util:
                                                                            element.getText())
                                 else:
                                     locator = xpath_obj.guess_xpath_using_contains(required_element, "text()",
-                                                                                   button_text.strip())
+                                                                                   href_text.strip())
                                 if len(self.check_xpath(locator)) == 1:
                                     result_flag = True
                                     replace_string = self._replace_hypen(href_text)
-                                    key = 'href_' + replace_string
-                                    self.xpaths[key] = locator
+                                    key = replace_string+"_link"
+                                    self.locatortype['xpath'] = locator
+                                    self.locatortype['key'] = key
                                     break
                             else:
                                 print(element)
 
                     else:
                         print(element)
-            print(self.xpaths)
+                    if self.locatortype:
+                        self.locators.append(self.locatortype)
+            print(self.locators)
+
         except Exception as e:
             print("Exception when trying to generate xpath for:%s" % required_element)
             logging.exception("message")
@@ -106,9 +113,9 @@ class Xpath_Util:
 
     def _replace_hypen(self, text):
         field_name = text.lower().translate({ord(c): "_" for c in "!@#$%^&*()[]{};:,./<>?\|`~-=_+"})
+        field_name = field_name.translate({ord(c): " " for c in "'"})
         field_name = field_name.translate({ord(c): " " for c in "\n"})
-        field_name = field_name.translate({ord(c): " " for c in " "})
-        field_name = field_name.translate({ord(c): "_" for c in " "})
+        field_name = field_name.translate({ord(c): "_" for c in "__"})
         return field_name
 
     def identify_xpath(self, tag, element):
@@ -119,8 +126,14 @@ class Xpath_Util:
                     element[attr] = [i for i in element[attr]]
                     element[attr] = ' '.join(element[attr])
                 attr_list.append("@%s='%s'" % (attr, element[attr]))
-        # print(attr_list)
-
+                if attr == 'class':
+                    self.locatortype['class'] = element[attr]
+                if attr == 'id':
+                    self.locatortype['id'] = element[attr]
+                if attr == 'tag':
+                    self.locatortype['id'] = element[attr]
+                if attr == 'name':
+                    self.locatortype['name'] = element[attr]
         attr_elements = ''
         for ele in attr_list:
             if attr_elements:
@@ -128,12 +141,11 @@ class Xpath_Util:
             else:
                 attr_elements = ele
                 field_name = self._replace_hypen(ele.split("='")[1])
-                key = tag + "_" + field_name
+                key = field_name+ "_" + tag
             xpath = "//%s[%s]" % (tag, attr_elements)
-            # print("xpath %s" % (xpath))
             if len(self.check_xpath(xpath)) == 1:
-                print("xpath %s" % (xpath))
-                self.xpaths[key] = xpath
+                self.locatortype['xpath'] = xpath
+                self.locatortype['key'] = key
                 return xpath
         return False
 
@@ -142,7 +154,7 @@ class Xpath_Util:
 if __name__ == "__main__":
     print("Start of %s" % __file__)
     url = "https://testproject.io/"
-    #url = "http://newtours.demoaut.com/"
+    #url = "https://www.flipkart.com/"
     # Initialize the xpath object
     xpath_obj = Xpath_Util()
 
